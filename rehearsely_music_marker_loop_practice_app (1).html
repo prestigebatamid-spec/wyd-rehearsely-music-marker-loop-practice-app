@@ -1,0 +1,2361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Rehearsely" />
+  <meta name="theme-color" content="#09090d" />
+  <title>Rehearsely — Song Marker & Loop Practice Studio</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    :root {
+      --bg-outer: #09090d;
+      --app-bg: #ffffff;
+      --app-surface: #f8fafc;
+      --app-border: #e2e8f0;
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-soft: #eef2ff;
+      --accent-border: #c7d2fe;
+      --marker-hover: #f8fafc;
+      --track-bg: #e2e8f0;
+      --popover-bg: rgba(255, 255, 255, 0.96);
+    }
+
+    [data-theme="dark"] {
+      --bg-outer: #050508;
+      --app-bg: #0d0d11;
+      --app-surface: #17171e;
+      --app-border: #262630;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --accent: #ef4444;
+      --accent-hover: #dc2626;
+      --accent-soft: rgba(239, 68, 68, 0.14);
+      --accent-border: rgba(239, 68, 68, 0.35);
+      --marker-hover: #1c1c24;
+      --track-bg: #2a2a36;
+      --popover-bg: rgba(26, 26, 34, 0.95);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-outer);
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    .font-mono-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Ambient background glow behind phone frame on desktop */
+    .ambient-backdrop {
+      background: radial-gradient(circle at 25% 20%, rgba(239, 68, 68, 0.28) 0%, transparent 45%),
+                  radial-gradient(circle at 75% 75%, rgba(99, 102, 241, 0.28) 0%, transparent 50%),
+                  #07070b;
+    }
+
+    /* App Container */
+    .app-shell {
+      background-color: var(--app-bg);
+      color: var(--text-primary);
+      border-color: var(--app-border);
+      transition: background-color 0.25s ease, color 0.25s ease;
+    }
+
+    /* Equalizer playing animation */
+    @keyframes eqBar1 {
+      0%, 100% { height: 5px; }
+      50% { height: 16px; }
+    }
+    @keyframes eqBar2 {
+      0%, 100% { height: 15px; }
+      33% { height: 6px; }
+      66% { height: 18px; }
+    }
+    @keyframes eqBar3 {
+      0%, 100% { height: 8px; }
+      40% { height: 17px; }
+      80% { height: 5px; }
+    }
+    .eq-bar-1 { animation: eqBar1 0.65s ease-in-out infinite; }
+    .eq-bar-2 { animation: eqBar2 0.55s ease-in-out infinite; }
+    .eq-bar-3 { animation: eqBar3 0.75s ease-in-out infinite; }
+    .eq-paused .eq-bar-1 { animation: none; height: 6px; }
+    .eq-paused .eq-bar-2 { animation: none; height: 13px; }
+    .eq-paused .eq-bar-3 { animation: none; height: 9px; }
+
+    /* Custom Scrollbar for Markers List */
+    .markers-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .markers-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .markers-scroll::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.3);
+      border-radius: 9999px;
+    }
+
+    /* Custom Speed Slider */
+    input[type=range].speed-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--track-bg);
+      border-radius: 999px;
+      outline: none;
+    }
+    input[type=range].speed-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 3px solid var(--accent);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+      cursor: pointer;
+      transition: transform 0.12s ease;
+    }
+    input[type=range].speed-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.12);
+    }
+
+    /* Metronome pulse animation */
+    @keyframes metroPulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 var(--accent); }
+      40% { transform: scale(1.12); box-shadow: 0 0 0 6px transparent; }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+    }
+    .metro-flash {
+      animation: metroPulse 0.22s ease-out;
+    }
+
+    /* Toast Pop Animation */
+    @keyframes toastSlideIn {
+      from { opacity: 0; transform: translate(-50%, 10px) scale(0.95); }
+      to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    }
+    .toast-enter {
+      animation: toastSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="ambient-backdrop min-h-screen flex flex-col items-center justify-center p-0 sm:p-4">
+
+  <!-- Desktop Top Quick Switcher Bar (Hidden on small mobile screens for pure native feel) -->
+  <div class="hidden sm:flex items-center justify-between w-full max-w-[440px] mb-2.5 px-3 py-1.5 rounded-2xl bg-zinc-900/80 backdrop-blur-md border border-zinc-800 text-xs text-zinc-300 shadow-lg">
+    <div class="flex items-center gap-2">
+      <span class="w-5 h-5 rounded-md bg-red-500 text-white font-bold flex items-center justify-center text-[11px] shadow">R</span>
+      <span class="font-semibold text-white">Rehearsely Studio</span>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <button onclick="switchPresetSong('song-1')" id="presetBtn1" class="px-2.5 py-1 rounded-lg font-medium transition bg-blue-600 text-white">
+        1. Light (This Is The Day)
+      </button>
+      <button onclick="switchPresetSong('song-2')" id="presetBtn2" class="px-2.5 py-1 rounded-lg font-medium transition bg-zinc-800 text-zinc-300 hover:bg-zinc-700">
+        2. Dark (Alamak 3.0)
+      </button>
+      <button onclick="toggleWideMode()" id="wideModeBtn" title="Toggle Phone / Studio Width" class="p-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:text-white">
+        <i class="ph ph-CornersOut text-sm"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN PHONE / APP SHELL -->
+  <div id="appShell" data-theme="light" class="app-shell relative w-full sm:max-w-[430px] h-screen sm:h-[850px] sm:max-h-[92vh] sm:rounded-[38px] sm:border-[6px] sm:border-zinc-800/90 shadow-2xl flex flex-col overflow-hidden transition-all duration-300">
+
+    <!-- ================= 1. TOP NAVIGATION HEADER ================= -->
+    <header class="px-4 pt-3 pb-2.5 flex items-center justify-between border-b shrink-0" style="border-color: var(--app-border);">
+      <!-- Left: Song Library / Back Button & Song Info -->
+      <div class="flex items-center gap-2.5 min-w-0 flex-1">
+        <button onclick="openLibraryModal()" title="Switch Song / Library" class="w-8 h-8 rounded-xl flex items-center justify-center hover:opacity-80 active:scale-95 transition shrink-0" style="background-color: var(--app-surface); color: var(--text-primary);">
+          <i class="ph-bold ph-caret-left text-base"></i>
+        </button>
+
+        <div class="min-w-0 flex-1 cursor-pointer group" onclick="openSongMetaModal()">
+          <div class="flex items-center gap-1.5">
+            <h1 id="songTitleDisplay" class="font-bold text-[16px] leading-tight truncate">This Is The Day</h1>
+            <i class="ph ph-pencil-simple text-xs opacity-0 group-hover:opacity-60 transition"></i>
+          </div>
+          <div class="flex items-center gap-1.5 text-[12px] mt-0.5" style="color: var(--text-secondary);">
+            <span id="songKeyDisplay" class="font-medium">Key F</span>
+            <span>•</span>
+            <span id="songBpmDisplay" class="font-medium">124 BPM</span>
+            <span id="audioModeBadge" class="ml-1 px-1.5 py-0.2 rounded text-[10px] font-semibold uppercase tracking-wider" style="background-color: var(--accent-soft); color: var(--accent);">Synth Groove</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Action Icons: Lyrics/Chords Note, Metronome Pulse, Theme Switch, Load Video -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <!-- Chord / Rehearsal Notes Sheet Button (matches top-right icon in Video 1) -->
+        <button onclick="openNotesModal()" title="Chords & Rehearsal Notes" class="w-8 h-8 rounded-lg border flex items-center justify-center transition hover:opacity-80 active:scale-95" style="border-color: var(--app-border); background-color: var(--app-surface);">
+          <i class="ph ph-file-text text-base"></i>
+        </button>
+
+        <!-- Interactive Metronome / Tap Tempo Pulse Button (matches waveform icon in Video 1) -->
+        <button id="metronomeBtn" onclick="toggleMetronome()" title="Toggle Click Track / Metronome" class="w-8 h-8 rounded-lg border flex items-center justify-center transition hover:opacity-80 active:scale-95 relative" style="border-color: var(--app-border); background-color: var(--app-surface);">
+          <i class="ph ph-waveform text-base"></i>
+          <span id="metroDot" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full" style="background-color: var(--accent);"></span>
+        </button>
+
+        <!-- Theme Switcher (Light Blue <-> Dark Red) -->
+        <button onclick="toggleTheme()" id="themeToggleBtn" title="Switch Light/Dark Theme" class="w-8 h-8 rounded-lg border flex items-center justify-center transition hover:opacity-80 active:scale-95" style="border-color: var(--app-border); background-color: var(--app-surface);">
+          <i id="themeIcon" class="ph ph-moon text-base"></i>
+        </button>
+
+        <!-- Load YouTube / Local Media Modal -->
+        <button onclick="openSourceModal()" title="Load YouTube URL or Local Video/MP3" class="w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-sm transition hover:opacity-90 active:scale-95" style="background-color: var(--accent);">
+          <i class="ph-bold ph-youtube-logo text-base"></i>
+        </button>
+
+        <!-- Go Live / Share & Deploy Button -->
+        <button onclick="openGoLiveModal()" title="Publish Live & Share Song Link" class="w-8 h-8 rounded-lg border flex items-center justify-center transition hover:opacity-80 active:scale-95" style="border-color: var(--accent-border); background-color: var(--accent-soft); color: var(--accent);">
+          <i class="ph-bold ph-rocket-launch text-base"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- ================= 2. VIDEO / STAGE PLAYER AREA ================= -->
+    <section class="relative w-full aspect-video bg-black shrink-0 overflow-hidden select-none group">
+      <!-- Mode A: Interactive Stage & Drum Visualizer Canvas (Guaranteed 100% reliable audio + visuals) -->
+      <canvas id="stageCanvas" class="w-full h-full block cursor-pointer" onclick="togglePlayPause()"></canvas>
+
+      <!-- Mode B: Real YouTube IFrame Container -->
+      <div id="youtubeWrapper" class="hidden absolute inset-0 w-full h-full bg-black">
+        <div id="ytPlayerContainer" class="w-full h-full"></div>
+        <!-- Diagnostic / Fallback Banner if YouTube Video Owner Blocks External Embeds (Error 101/150) -->
+        <div id="ytErrorOverlay" class="hidden absolute inset-0 bg-zinc-950/95 z-30 flex flex-col items-center justify-center p-5 text-center text-white">
+          <i class="ph-fill ph-warning-circle text-3xl text-amber-400 mb-2"></i>
+          <h4 id="ytErrorTitle" class="text-sm font-bold mb-1">YouTube Embed Restricted by Owner</h4>
+          <p id="ytErrorDesc" class="text-xs text-zinc-400 max-w-[300px] mb-3 leading-relaxed">
+            The uploader of this music video disabled playback inside external apps, or this preview sandbox blocks cookies.
+          </p>
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            <button onclick="setPlayerEngine('synth')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white transition">
+              Play with Studio Synth Groove
+            </button>
+            <button onclick="openSourceModal()" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition">
+              Try Another Video / Upload MP3
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode C: Local Uploaded Video / Audio Element -->
+      <video id="localVideoPlayer" class="hidden absolute inset-0 w-full h-full object-contain bg-black" playsinline onclick="togglePlayPause()"></video>
+
+      <!-- Video Overlay HUD (Matches YouTube / Rehearsely Player Overlay) -->
+      <div id="videoHudOverlay" class="pointer-events-none absolute inset-0 flex flex-col justify-between p-3 bg-gradient-to-b from-black/65 via-transparent to-black/75 transition-opacity duration-200">
+        <!-- Top Bar inside Video -->
+        <div class="flex items-center justify-between gap-2 pointer-events-auto">
+          <div class="flex items-center gap-2 min-w-0">
+            <div id="channelAvatar" class="w-8 h-8 rounded-full bg-blue-900 border border-white/20 flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow">
+              LM
+            </div>
+            <div class="min-w-0">
+              <div id="videoOverlayTitle" class="text-white text-xs sm:text-sm font-semibold truncate drop-shadow">
+                This Is The Day (Rehearsal Mix)
+              </div>
+              <div id="videoOverlayArtist" class="text-white/75 text-[11px] truncate">
+                Lakewood Music
+              </div>
+            </div>
+          </div>
+
+          <!-- Top-right player pills: Engine Switcher, Mute, CC, Settings -->
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button onclick="cyclePlayerEngine()" id="engineToggleBtn" class="px-2 py-1 rounded-md bg-black/65 hover:bg-black/80 text-white text-[11px] font-medium border border-white/15 backdrop-blur-sm flex items-center gap-1 transition" title="Switch between Synth Studio Groove & YouTube Embed">
+              <i class="ph-fill ph-music-notes text-xs text-amber-400"></i>
+              <span id="engineLabelText">Studio Synth</span>
+            </button>
+            <button onclick="toggleMute()" id="muteBtn" class="w-7 h-7 rounded-md bg-black/60 hover:bg-black/80 text-white flex items-center justify-center border border-white/10">
+              <i id="muteIcon" class="ph-fill ph-speaker-high text-sm"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Center Play/Pause Overlay Indicator -->
+        <div class="flex items-center justify-center">
+          <button onclick="togglePlayPause()" class="pointer-events-auto w-12 h-12 rounded-full bg-black/45 hover:bg-black/65 border border-white/20 backdrop-blur-sm text-white flex items-center justify-center transition transform active:scale-90">
+            <i id="videoCenterIcon" class="ph-fill ph-play text-2xl ml-0.5"></i>
+          </button>
+        </div>
+
+        <!-- Bottom Bar inside Video -->
+        <div class="flex items-end justify-between gap-2 pointer-events-auto">
+          <div class="flex flex-col gap-1">
+            <span id="videoTimestampBadge" class="font-mono-time text-[11px] text-white/90 bg-black/50 px-1.5 py-0.5 rounded w-fit">
+              0:00 / 4:43
+            </span>
+            <div id="captionPill" class="px-2 py-0.5 rounded bg-black/75 text-white text-[11px] font-medium w-fit border border-white/10">
+              [Music]
+            </div>
+          </div>
+
+          <!-- Active Section Mini Thumbnail Card in center-bottom -->
+          <div class="hidden xs:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-black/70 border border-white/15 backdrop-blur-sm text-white text-[11px]">
+            <span class="w-2 h-2 rounded-full animate-pulse" style="background-color: var(--accent);"></span>
+            <span id="hudCurrentMarkerName" class="font-semibold">Intro Drum</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="openSourceModal()" class="flex items-center gap-1 px-2 py-1 rounded bg-black/65 hover:bg-black/85 text-white text-[11px] font-semibold border border-white/15 transition">
+              <i class="ph-fill ph-youtube-logo text-red-500 text-sm"></i>
+              <span>YouTube</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 3. MARKERS HEADER BAR ================= -->
+    <div class="px-4 py-3 flex items-center justify-between border-b shrink-0" style="border-color: var(--app-border);">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-bold tracking-wider uppercase" style="color: var(--text-primary);">MARKERS</span>
+        <span id="markersCountBadge" class="text-xs font-bold px-2 py-0.5 rounded-full" style="background-color: var(--app-surface); color: var(--text-secondary);">
+          10
+        </span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <!-- Quick Instant Drop Marker at Current Time -->
+        <button onclick="quickDropMarker()" title="1-Tap Drop Marker at Current Playback Time" class="px-2.5 py-1 rounded-lg text-xs font-semibold border transition hover:opacity-85 active:scale-95 flex items-center gap-1" style="border-color: var(--app-border); background-color: var(--app-surface); color: var(--text-secondary);">
+          <i class="ph-bold ph-map-pin"></i>
+          <span>Quick Drop</span>
+        </button>
+
+        <!-- + Add Marker Button (Matches both Video 1 Blue Text & Video 2 Red Pill) -->
+        <button id="addMarkerHeaderBtn" onclick="openMarkerModal()" class="px-3 py-1 rounded-full text-xs font-bold transition transform active:scale-95 flex items-center gap-1 shadow-sm" style="background-color: var(--accent); color: #ffffff;">
+          <i class="ph-bold ph-plus text-xs"></i>
+          <span>Add Marker</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ================= 4. SCROLLABLE MARKERS LIST ================= -->
+    <div id="markersListContainer" class="markers-scroll flex-1 overflow-y-auto divide-y relative" style="divide-color: var(--app-border);">
+      <!-- Dynamically populated by JS -->
+    </div>
+
+    <!-- FLOATING LOOP TOAST NOTIFICATION (Matches Video 2: "🔁 Looping: Fill in 1/32 (1:43 - 1:48)") -->
+    <div id="loopToastBanner" class="hidden pointer-events-none absolute left-1/2 bottom-[168px] -translate-x-1/2 z-30 w-[90%] max-w-[380px]">
+      <div class="px-3.5 py-2 rounded-xl bg-zinc-950/95 border border-red-500/50 shadow-2xl flex items-center justify-between gap-2 text-white backdrop-blur-md">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="px-2 py-0.5 rounded-md bg-red-600 text-white text-[10px] font-bold flex items-center gap-1 shrink-0">
+            <i class="ph-bold ph-arrows-clockwise"></i> Looping
+          </span>
+          <span id="loopToastText" class="text-xs font-medium truncate text-zinc-100">
+            Fill in 1/32 (1:43 – 1:48)
+          </span>
+        </div>
+        <button onclick="clearActiveLoop(event)" class="pointer-events-auto text-zinc-400 hover:text-white text-xs px-1">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- FLOATING PLAYBACK SPEED POPOVER (Matches Video 2 Speed Control Card) -->
+    <div id="speedPopover" class="hidden absolute left-4 right-4 bottom-[86px] z-40 rounded-2xl p-4 border shadow-2xl backdrop-blur-xl transition-all" style="background-color: var(--popover-bg); border-color: var(--app-border);">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-xs font-semibold" style="color: var(--text-secondary);">Playback Speed</span>
+        <button onclick="toggleSpeedPopover(false)" class="w-6 h-6 rounded-full flex items-center justify-center hover:opacity-75" style="color: var(--text-secondary);">
+          <i class="ph-bold ph-x text-xs"></i>
+        </button>
+      </div>
+
+      <!-- Large Speed Readout -->
+      <div id="speedBigReadout" class="text-center text-3xl font-extrabold my-2 font-mono-time" style="color: var(--text-primary);">
+        1x
+      </div>
+
+      <!-- Turtle to Rabbit Slider Row -->
+      <div class="flex items-center gap-3 my-3">
+        <i class="ph-fill ph-gauge text-base opacity-60"></i>
+        <input id="speedRangeSlider" type="range" min="0.25" max="1.5" step="0.05" value="1" class="speed-slider" oninput="setPlaybackSpeed(parseFloat(this.value))" />
+        <i class="ph-fill ph-lightning text-base opacity-80" style="color: var(--accent);"></i>
+      </div>
+
+      <!-- Preset Speed Pills (0.5x, 0.75x, 1x, 1.25x, 1.5x) -->
+      <div class="grid grid-cols-5 gap-1.5 mt-3">
+        <button onclick="setPlaybackSpeed(0.5)" data-speed-pill="0.5" class="speed-pill py-1.5 rounded-full text-xs font-bold transition">0.5x</button>
+        <button onclick="setPlaybackSpeed(0.75)" data-speed-pill="0.75" class="speed-pill py-1.5 rounded-full text-xs font-bold transition">0.75x</button>
+        <button onclick="setPlaybackSpeed(1)" data-speed-pill="1" class="speed-pill py-1.5 rounded-full text-xs font-bold transition">1x</button>
+        <button onclick="setPlaybackSpeed(1.25)" data-speed-pill="1.25" class="speed-pill py-1.5 rounded-full text-xs font-bold transition">1.25x</button>
+        <button onclick="setPlaybackSpeed(1.5)" data-speed-pill="1.5" class="speed-pill py-1.5 rounded-full text-xs font-bold transition">1.5x</button>
+      </div>
+    </div>
+
+    <!-- ================= 5. BOTTOM TIMELINE SCRUBBER & TRANSPORT BAR ================= -->
+    <footer class="px-4 pt-2.5 pb-4 border-t shrink-0 select-none relative z-20" style="background-color: var(--app-bg); border-color: var(--app-border);">
+
+      <!-- Active Marker / Loop Status Row above Scrubber -->
+      <div class="flex items-center justify-between mb-1.5 min-h-[20px]">
+        <div class="flex items-center gap-1.5 text-xs font-semibold truncate" style="color: var(--accent);">
+          <i id="bottomStatusIcon" class="ph-fill ph-music-notes text-sm"></i>
+          <span id="bottomActiveMarkerLabel" class="truncate">Intro Drum</span>
+          <span id="bottomActiveLoopRange" class="font-mono-time text-[11px] opacity-85"></span>
+        </div>
+
+        <!-- Quick A-B Loop Clear button when looping -->
+        <button id="stopLoopPillBtn" onclick="clearActiveLoop()" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition hover:opacity-80" style="background-color: var(--accent-soft); color: var(--accent);">
+          Stop Loop ×
+        </button>
+      </div>
+
+      <!-- Timeline Scrubber with Vertical Marker Ticks (Matches Video 1: 0:00 [---|---|--] 4:43) -->
+      <div class="flex items-center gap-2.5 mb-3">
+        <span id="currentTimeLabel" class="font-mono-time text-[11px] font-medium w-9 text-left shrink-0" style="color: var(--text-secondary);">0:00</span>
+
+        <!-- Interactive Seek Track -->
+        <div id="timelineTrack" class="relative flex-1 h-6 flex items-center cursor-pointer group" onmousedown="startTimelineScrub(event)" ontouchstart="startTimelineScrub(event)">
+          <!-- Background Line -->
+          <div class="w-full h-1.5 rounded-full overflow-hidden relative" style="background-color: var(--track-bg);">
+            <!-- Played Progress Fill -->
+            <div id="timelineFill" class="h-full rounded-full transition-all duration-75" style="width: 0%; background-color: var(--accent);"></div>
+          </div>
+
+          <!-- Active Loop Segment Highlight Bar -->
+          <div id="timelineLoopHighlight" class="hidden absolute h-2.5 rounded-sm pointer-events-none opacity-45" style="background-color: var(--accent);"></div>
+
+          <!-- Marker Vertical Tick Marks Container -->
+          <div id="timelineTicksContainer" class="absolute inset-0 pointer-events-none"></div>
+
+          <!-- Scrubber Playhead Thumb -->
+          <div id="timelineThumb" class="absolute w-4 h-4 rounded-full bg-white shadow-md -ml-2 transition-transform group-hover:scale-125" style="left: 0%; border: 3px solid var(--accent);"></div>
+        </div>
+
+        <span id="totalDurationLabel" class="font-mono-time text-[11px] font-medium w-9 text-right shrink-0" style="color: var(--text-secondary);">4:43</span>
+      </div>
+
+      <!-- Bottom Transport Controls Row -->
+      <div class="flex items-center justify-between px-1">
+        <!-- Left: Playback Speed Pill Button -->
+        <button id="speedTriggerBtn" onclick="toggleSpeedPopover()" class="min-w-[64px] h-9 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-1 border transition active:scale-95" style="background-color: var(--accent-soft); color: var(--accent); border-color: var(--accent-border);">
+          <span id="speedTriggerText">1x</span>
+          <i class="ph-bold ph-caret-up text-[11px]"></i>
+        </button>
+
+        <!-- Center Transport Group: Prev/Rewind 5s, Big Play/Pause, Next/Forward 5s -->
+        <div class="flex items-center gap-4 sm:gap-5">
+          <!-- Previous Marker Button -->
+          <button onclick="jumpToAdjacentMarker(-1)" title="Previous Marker" class="w-9 h-9 rounded-full flex items-center justify-center transition hover:opacity-75 active:scale-90" style="color: var(--text-secondary);">
+            <i class="ph-bold ph-skip-back text-lg"></i>
+          </button>
+
+          <!-- Rewind 5s Button -->
+          <button onclick="seekRelative(-5)" title="Rewind 5 seconds" class="w-9 h-9 rounded-full flex items-center justify-center transition hover:opacity-80 active:scale-90 relative" style="color: var(--accent);">
+            <i class="ph-bold ph-arrow-counter-clockwise text-xl"></i>
+            <span class="absolute text-[8px] font-extrabold mt-0.5">5</span>
+          </button>
+
+          <!-- Main Play / Pause Circle Button -->
+          <button id="mainPlayBtn" onclick="togglePlayPause()" class="w-14 h-14 rounded-full text-white flex items-center justify-center shadow-lg transition transform hover:scale-105 active:scale-95" style="background-color: var(--accent); box-shadow: 0 8px 20px -4px var(--accent);">
+            <i id="mainPlayIcon" class="ph-fill ph-play text-2xl ml-0.5"></i>
+          </button>
+
+          <!-- Forward 5s Button -->
+          <button onclick="seekRelative(5)" title="Forward 5 seconds" class="w-9 h-9 rounded-full flex items-center justify-center transition hover:opacity-80 active:scale-90 relative" style="color: var(--accent);">
+            <i class="ph-bold ph-arrow-clockwise text-xl"></i>
+            <span class="absolute text-[8px] font-extrabold mt-0.5">5</span>
+          </button>
+
+          <!-- Next Marker Button -->
+          <button onclick="jumpToAdjacentMarker(1)" title="Next Marker" class="w-9 h-9 rounded-full flex items-center justify-center transition hover:opacity-75 active:scale-90" style="color: var(--text-secondary);">
+            <i class="ph-bold ph-skip-forward text-lg"></i>
+          </button>
+        </div>
+
+        <!-- Right: Loop Current Section Toggle -->
+        <button id="bottomLoopBtn" onclick="toggleLoopCurrentSection()" title="Loop Current Marker Section" class="w-10 h-9 rounded-full flex items-center justify-center border transition active:scale-95" style="border-color: var(--app-border); color: var(--text-secondary); background-color: var(--app-surface);">
+          <i class="ph-bold ph-arrows-clockwise text-base"></i>
+        </button>
+      </div>
+    </footer>
+
+    <!-- ================= MODAL 1: ADD / EDIT MARKER ================= -->
+    <div id="markerModal" class="hidden absolute inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="w-full sm:max-w-[390px] rounded-t-3xl sm:rounded-3xl p-5 border shadow-2xl transition-all" style="background-color: var(--app-bg); border-color: var(--app-border); color: var(--text-primary);">
+        <div class="flex items-center justify-between mb-3">
+          <h3 id="markerModalTitle" class="text-base font-bold">Add Song Marker</h3>
+          <button onclick="closeMarkerModal()" class="w-7 h-7 rounded-full flex items-center justify-center hover:opacity-70" style="background-color: var(--app-surface);">
+            <i class="ph-bold ph-x text-sm"></i>
+          </button>
+        </div>
+
+        <!-- Quick Section Preset Chips -->
+        <div class="mb-3">
+          <label class="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style="color: var(--text-secondary);">Quick Section Labels</label>
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" onclick="fillMarkerLabel('Intro Drum')" class="px-2.5 py-1 rounded-lg text-xs font-medium border hover:opacity-80" style="background-color: var(--app-surface); border-color: var(--app-border);">Intro Drum</button>
+            <button type="button" onclick="fillMarkerLabel('Intro Full Band')" class="px-2.5 py-1 rounded-lg text-xs font-medium border hover:opacity-80" style="background-color: var(--app-surface); border-color: var(--app-border);">Intro Full Band</button>
+            <button type="button" onclick="fillMarkerLabel('Verse 1')" class="px-2.5 py-1 rounded-lg text-xs font-medium border hover:opacity-80" style="background-color: var(--app-surface); border-color: var(--app-border);">Verse 1</button>
+            <button type="button" onclick="fillMarkerLabel('Chorus')" class="px-2.5 py-1 rounded-lg text-xs font-medium border hover:opacity-80" style="background-color: var(--app-surface); border-color: var(--app-border);">Chorus</button>
+            <button type="button" onclick="fillMarkerLabel('Fill in 1/32')" class="px-2.5 py-1 rounded-lg text-xs font-medium border hover:opacity-80" style="background-color: var(--app-surface); border-color: var(--app-border);">Fill in 1/32</button>
+            <button type="button" onclick="fillMarkerLabel('mini intro')" class="px-2.5 py-1 rounded-lg text-xs font-medium border hover:opacity-80" style="background-color: var(--app-surface); border-color: var(--app-border);">mini intro</button>
+            <button type="button" onclick="fillMarkerLabel('Vamp')" class="px-2.5 py-1 rounded-lg text-xs font-medium border hover:opacity-80" style="background-color: var(--app-surface); border-color: var(--app-border);">Vamp</button>
+            <button type="button" onclick="fillMarkerLabel('Interlude')" class="px-2.5 py-1 rounded-lg text-xs font-medium border hover:opacity-80" style="background-color: var(--app-surface); border-color: var(--app-border);">Interlude</button>
+          </div>
+        </div>
+
+        <!-- Marker Title Input -->
+        <div class="mb-3">
+          <label class="block text-xs font-semibold mb-1" style="color: var(--text-secondary);">Marker Name</label>
+          <input id="markerNameInput" type="text" placeholder="e.g., Chorus, Drum Fill, Bridge..." class="w-full px-3 py-2 rounded-xl border text-sm font-medium focus:outline-none" style="background-color: var(--app-surface); border-color: var(--app-border); color: var(--text-primary);" />
+        </div>
+
+        <!-- Start Time & Loop Range Controls -->
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">Start Time (mm:ss)</label>
+              <button type="button" onclick="captureCurrentToInput('markerStartInput')" class="text-[11px] font-bold" style="color: var(--accent);">Use Current</button>
+            </div>
+            <input id="markerStartInput" type="text" placeholder="0:16" class="font-mono-time w-full px-3 py-2 rounded-xl border text-sm font-semibold focus:outline-none" style="background-color: var(--app-surface); border-color: var(--app-border); color: var(--text-primary);" />
+            <div class="flex items-center gap-1 mt-1">
+              <button type="button" onclick="nudgeTimeInput('markerStartInput', -1)" class="flex-1 py-1 rounded text-[11px] font-mono-time border" style="border-color: var(--app-border); background-color: var(--app-surface);">-1s</button>
+              <button type="button" onclick="nudgeTimeInput('markerStartInput', 1)" class="flex-1 py-1 rounded text-[11px] font-mono-time border" style="border-color: var(--app-border); background-color: var(--app-surface);">+1s</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-xs font-semibold" style="color: var(--text-secondary);">End Time (Loop)</label>
+              <button type="button" onclick="captureCurrentToInput('markerEndInput')" class="text-[11px] font-bold" style="color: var(--accent);">Use Current</button>
+            </div>
+            <input id="markerEndInput" type="text" placeholder="Optional (e.g. 1:10)" class="font-mono-time w-full px-3 py-2 rounded-xl border text-sm font-semibold focus:outline-none" style="background-color: var(--app-surface); border-color: var(--app-border); color: var(--text-primary);" />
+            <div class="flex items-center gap-1 mt-1">
+              <button type="button" onclick="nudgeTimeInput('markerEndInput', -1)" class="flex-1 py-1 rounded text-[11px] font-mono-time border" style="border-color: var(--app-border); background-color: var(--app-surface);">-1s</button>
+              <button type="button" onclick="nudgeTimeInput('markerEndInput', 1)" class="flex-1 py-1 rounded text-[11px] font-mono-time border" style="border-color: var(--app-border); background-color: var(--app-surface);">+1s</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Enable Section Loop Toggle -->
+        <label class="flex items-center justify-between p-3 rounded-xl border mb-4 cursor-pointer" style="background-color: var(--app-surface); border-color: var(--app-border);">
+          <div class="flex items-center gap-2.5">
+            <i class="ph-bold ph-arrows-clockwise text-lg" style="color: var(--accent);"></i>
+            <div>
+              <div class="text-xs font-bold">Loop Section Range</div>
+              <div class="text-[11px]" style="color: var(--text-secondary);">Automatically repeat between Start & End time</div>
+            </div>
+          </div>
+          <input id="markerLoopCheckbox" type="checkbox" class="w-4 h-4 accent-blue-600 rounded" />
+        </label>
+
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="closeMarkerModal()" class="flex-1 py-2.5 rounded-xl text-xs font-bold border" style="border-color: var(--app-border); background-color: var(--app-surface);">
+            Cancel
+          </button>
+          <button type="button" onclick="saveMarkerFromModal()" class="flex-1 py-2.5 rounded-xl text-xs font-bold text-white shadow-md" style="background-color: var(--accent);">
+            Save Marker
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL 2: SONG LIBRARY & PRESET SWITCHER ================= -->
+    <div id="libraryModal" class="hidden absolute inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="w-full sm:max-w-[395px] rounded-t-3xl sm:rounded-3xl p-5 border shadow-2xl" style="background-color: var(--app-bg); border-color: var(--app-border); color: var(--text-primary);">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h3 class="text-base font-bold">Rehearsal Song Library</h3>
+            <p class="text-xs" style="color: var(--text-secondary);">Switch between pre-loaded tracks or create your own</p>
+          </div>
+          <button onclick="closeLibraryModal()" class="w-7 h-7 rounded-full flex items-center justify-center" style="background-color: var(--app-surface);">
+            <i class="ph-bold ph-x text-sm"></i>
+          </button>
+        </div>
+
+        <div id="librarySongsList" class="space-y-2 max-h-[340px] overflow-y-auto my-3">
+          <!-- Populated dynamically -->
+        </div>
+
+        <button onclick="closeLibraryModal(); openSourceModal();" class="w-full py-2.5 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 shadow-md" style="background-color: var(--accent);">
+          <i class="ph-bold ph-plus"></i>
+          <span>Import New YouTube Song or Local Audio/Video</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ================= MODAL 3: LOAD YOUTUBE URL OR LOCAL FILE ================= -->
+    <div id="sourceModal" class="hidden absolute inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="w-full sm:max-w-[395px] rounded-t-3xl sm:rounded-3xl p-5 border shadow-2xl" style="background-color: var(--app-bg); border-color: var(--app-border); color: var(--text-primary);">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-base font-bold">Media & YouTube Source</h3>
+          <button onclick="closeSourceModal()" class="w-7 h-7 rounded-full flex items-center justify-center" style="background-color: var(--app-surface);">
+            <i class="ph-bold ph-x text-sm"></i>
+          </button>
+        </div>
+
+        <!-- Option 1: Paste YouTube Link -->
+        <div class="p-3 rounded-2xl border mb-3" style="background-color: var(--app-surface); border-color: var(--app-border);">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <i class="ph-fill ph-youtube-logo text-red-500 text-lg"></i>
+              <span class="text-xs font-bold">Load Any YouTube Video URL or ID</span>
+            </div>
+            <span id="ytLoadStatus" class="text-[10px] font-semibold text-emerald-500 hidden">Fetching info...</span>
+          </div>
+          <input id="ytUrlInput" type="text" placeholder="Paste https://youtu.be/... or youtube.com/watch?v=..." oninput="clearYtInputError()" class="w-full px-3 py-2 rounded-xl border text-xs mb-1.5 focus:outline-none" style="background-color: var(--app-bg); border-color: var(--app-border); color: var(--text-primary);" />
+          <p id="ytUrlErrorMsg" class="hidden text-[11px] text-red-500 font-medium mb-2">Please paste a valid YouTube link or 11-character video ID.</p>
+
+          <!-- Embed-friendly drum cam presets -->
+          <div class="flex items-center gap-1.5 mb-2 overflow-x-auto pb-1">
+            <span class="text-[10px] opacity-60 shrink-0">Try embeddable:</span>
+            <button type="button" onclick="quickFillYtSample('https://www.youtube.com/watch?v=M7lc1UVf-VE', 'Alamak 3.0 Drum Session', 'Key Am • 118 BPM')" class="px-2 py-0.5 rounded text-[10px] font-semibold border shrink-0 hover:opacity-80" style="border-color: var(--app-border); background-color: var(--app-bg);">Demo Video 1</button>
+            <button type="button" onclick="quickFillYtSample('https://www.youtube.com/watch?v=aqz-KE-bpKQ', 'Big Buck Drum Groove', 'Key F • 124 BPM')" class="px-2 py-0.5 rounded text-[10px] font-semibold border shrink-0 hover:opacity-80" style="border-color: var(--app-border); background-color: var(--app-bg);">Demo Video 2</button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 mb-2">
+            <input id="newSongTitleInput" type="text" placeholder="Song Title (auto-detected)" class="px-2.5 py-1.5 rounded-lg border text-xs" style="background-color: var(--app-bg); border-color: var(--app-border); color: var(--text-primary);" />
+            <input id="newSongMetaInput" type="text" placeholder="Key C • 120 BPM" class="px-2.5 py-1.5 rounded-lg border text-xs" style="background-color: var(--app-bg); border-color: var(--app-border); color: var(--text-primary);" />
+          </div>
+          <button onclick="loadYouTubeFromInput()" class="w-full py-2 rounded-xl text-xs font-bold text-white transition hover:opacity-90" style="background-color: var(--accent);">
+            Load YouTube Video Now
+          </button>
+        </div>
+
+        <!-- Option 2: Upload Local MP4 / MP3 File -->
+        <div class="p-3 rounded-2xl border mb-3" style="background-color: var(--app-surface); border-color: var(--app-border);">
+          <div class="flex items-center gap-2 mb-1.5">
+            <i class="ph-fill ph-folder-music text-lg" style="color: var(--accent);"></i>
+            <span class="text-xs font-bold">Upload Local Video / Audio File (MP4, MP3, WAV)</span>
+          </div>
+          <p class="text-[11px] mb-2" style="color: var(--text-secondary);">Practice with local drum cams or rehearsal stems stored on your device.</p>
+          <input id="localFileInput" type="file" accept="video/*,audio/*" onchange="handleLocalFileUpload(event)" class="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:opacity-90 cursor-pointer" />
+        </div>
+
+        <!-- Option 3: Built-in Studio Synthesizer Groove -->
+        <div class="flex items-center justify-between p-3 rounded-2xl border" style="background-color: var(--app-surface); border-color: var(--app-border);">
+          <div>
+            <div class="text-xs font-bold">Built-in Studio Backing Track</div>
+            <div class="text-[11px]" style="color: var(--text-secondary);">Web Audio synth band & drum cam visualizer</div>
+          </div>
+          <button onclick="setPlayerEngine('synth'); closeSourceModal();" class="px-3 py-1.5 rounded-xl text-xs font-bold border" style="border-color: var(--accent); color: var(--accent);">
+            Use Synth
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL 4: EDIT SONG KEY / BPM METADATA ================= -->
+    <div id="songMetaModal" class="hidden absolute inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="w-full max-w-[360px] rounded-3xl p-5 border shadow-2xl" style="background-color: var(--app-bg); border-color: var(--app-border); color: var(--text-primary);">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-base font-bold">Song Metadata & Tempo</h3>
+          <button onclick="closeSongMetaModal()" class="w-7 h-7 rounded-full flex items-center justify-center" style="background-color: var(--app-surface);">
+            <i class="ph-bold ph-x text-sm"></i>
+          </button>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold mb-1" style="color: var(--text-secondary);">Song Title</label>
+            <input id="editSongTitle" type="text" class="w-full px-3 py-2 rounded-xl border text-sm font-semibold" style="background-color: var(--app-surface); border-color: var(--app-border); color: var(--text-primary);" />
+          </div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-xs font-semibold mb-1" style="color: var(--text-secondary);">Musical Key</label>
+              <input id="editSongKey" type="text" placeholder="Key F" class="w-full px-3 py-2 rounded-xl border text-sm font-semibold" style="background-color: var(--app-surface); border-color: var(--app-border); color: var(--text-primary);" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1" style="color: var(--text-secondary);">Tempo (BPM)</label>
+              <div class="flex gap-1">
+                <input id="editSongBpm" type="number" min="40" max="240" class="w-full px-3 py-2 rounded-xl border text-sm font-semibold font-mono-time" style="background-color: var(--app-surface); border-color: var(--app-border); color: var(--text-primary);" />
+                <button type="button" onclick="handleTapTempo()" class="px-2.5 rounded-xl text-[11px] font-bold border shrink-0 active:scale-95" style="border-color: var(--accent); color: var(--accent); background-color: var(--accent-soft);">
+                  TAP
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-4">
+          <button onclick="closeSongMetaModal()" class="flex-1 py-2 rounded-xl text-xs font-bold border" style="border-color: var(--app-border);">Cancel</button>
+          <button onclick="saveSongMetadata()" class="flex-1 py-2 rounded-xl text-xs font-bold text-white" style="background-color: var(--accent);">Save Changes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL 5: CHORD CHART & REHEARSAL NOTES ================= -->
+    <div id="notesModal" class="hidden absolute inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="w-full max-w-[380px] rounded-3xl p-5 border shadow-2xl" style="background-color: var(--app-bg); border-color: var(--app-border); color: var(--text-primary);">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <i class="ph-fill ph-music-notes-simple text-lg" style="color: var(--accent);"></i>
+            <h3 class="text-base font-bold">Chord Chart & Cues</h3>
+          </div>
+          <button onclick="closeNotesModal()" class="w-7 h-7 rounded-full flex items-center justify-center" style="background-color: var(--app-surface);">
+            <i class="ph-bold ph-x text-sm"></i>
+          </button>
+        </div>
+        <p class="text-xs mb-2" style="color: var(--text-secondary);">Keep section chords, drum sticking, or MD cues for this song:</p>
+        <textarea id="songNotesTextarea" rows="7" class="w-full p-3 rounded-xl border text-xs font-mono-time leading-relaxed focus:outline-none" style="background-color: var(--app-surface); border-color: var(--app-border); color: var(--text-primary);"></textarea>
+        <div class="flex justify-end gap-2 mt-3">
+          <button onclick="saveSongNotes()" class="px-4 py-2 rounded-xl text-xs font-bold text-white" style="background-color: var(--accent);">Save Notes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL 6: GO LIVE / DEPLOY & SHARE STUDIO ================= -->
+    <div id="goLiveModal" class="hidden absolute inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="w-full sm:max-w-[400px] max-h-[88vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-5 border shadow-2xl" style="background-color: var(--app-bg); border-color: var(--app-border); color: var(--text-primary);">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg flex items-center justify-center text-white" style="background-color: var(--accent);">
+              <i class="ph-bold ph-rocket-launch text-sm"></i>
+            </span>
+            <div>
+              <h3 class="text-base font-bold leading-tight">Make App Live</h3>
+              <p class="text-[11px]" style="color: var(--text-secondary);">Host online for free & install on your phone</p>
+            </div>
+          </div>
+          <button onclick="closeGoLiveModal()" class="w-7 h-7 rounded-full flex items-center justify-center" style="background-color: var(--app-surface);">
+            <i class="ph-bold ph-x text-sm"></i>
+          </button>
+        </div>
+
+        <!-- Step 1: Download Single-File HTML -->
+        <div class="p-3.5 rounded-2xl border mb-3" style="background-color: var(--app-surface); border-color: var(--app-border);">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center text-white" style="background-color: var(--accent);">1</span>
+              Export Your Ready-to-Host App File
+            </span>
+            <span class="text-[10px] font-mono-time px-1.5 py-0.5 rounded border" style="border-color: var(--app-border); color: var(--text-secondary);">index.html</span>
+          </div>
+          <p class="text-[11px] mb-2.5 leading-relaxed" style="color: var(--text-secondary);">
+            Because the entire app is built inside a single self-contained file, you can download it with your current songs and markers baked in:
+          </p>
+          <button onclick="downloadStandaloneApp()" class="w-full py-2 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 shadow transition hover:opacity-90 active:scale-98" style="background-color: var(--accent);">
+            <i class="ph-bold ph-download-simple text-sm"></i>
+            <span>Download index.html</span>
+          </button>
+        </div>
+
+        <!-- Step 2: 30-Second Free Hosting Options -->
+        <div class="p-3.5 rounded-2xl border mb-3 space-y-2.5" style="background-color: var(--app-surface); border-color: var(--app-border);">
+          <div class="text-xs font-bold flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center text-white" style="background-color: var(--accent);">2</span>
+            Publish Online in 30 Seconds (Free)
+          </div>
+
+          <div class="p-2.5 rounded-xl border text-xs" style="background-color: var(--app-bg); border-color: var(--app-border);">
+            <div class="font-bold text-emerald-500 flex items-center justify-between">
+              <span>Option A: Netlify Drop (Fastest — No Account Needed)</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10">30 sec</span>
+            </div>
+            <ol class="list-decimal list-inside text-[11px] mt-1 space-y-0.5" style="color: var(--text-secondary);">
+              <li>Put your downloaded <b>index.html</b> inside a new folder on your computer.</li>
+              <li>Go to <b>app.netlify.com/drop</b> and drag-and-drop that folder onto the page.</li>
+              <li>You immediately get a live <b>https://...netlify.app</b> link!</li>
+            </ol>
+          </div>
+
+          <div class="p-2.5 rounded-xl border text-xs" style="background-color: var(--app-bg); border-color: var(--app-border);">
+            <div class="font-bold text-blue-500 flex items-center justify-between">
+              <span>Option B: GitHub Pages or Vercel</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10">Custom URL</span>
+            </div>
+            <ol class="list-decimal list-inside text-[11px] mt-1 space-y-0.5" style="color: var(--text-secondary);">
+              <li>Create a free repository on <b>github.com</b> and upload <b>index.html</b>.</li>
+              <li>Go to <b>Settings → Pages</b>, select the <b>main</b> branch, and click Save.</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Step 3: Install on iPhone / Android Home Screen -->
+        <div class="p-3.5 rounded-2xl border mb-3" style="background-color: var(--app-surface); border-color: var(--app-border);">
+          <div class="text-xs font-bold flex items-center gap-1.5 mb-1">
+            <span class="w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center text-white" style="background-color: var(--accent);">3</span>
+            Install on iPhone / Android Like a Native App
+          </div>
+          <p class="text-[11px] leading-relaxed" style="color: var(--text-secondary);">
+            Once your link is open in <b>Safari (iOS)</b> or <b>Chrome (Android)</b>, tap <b>Share → Add to Home Screen</b>. It launches full-screen without browser bars!
+          </p>
+        </div>
+
+        <!-- Bonus: Export / Import JSON Backup for Bandmates -->
+        <div class="flex items-center gap-2">
+          <button onclick="copyShareableSongJson()" id="copyJsonBtn" class="flex-1 py-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition hover:opacity-80" style="border-color: var(--app-border); background-color: var(--app-surface);">
+            <i class="ph-bold ph-copy"></i>
+            <span>Copy Markers JSON</span>
+          </button>
+          <button onclick="closeGoLiveModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-white" style="background-color: var(--accent);">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- YouTube IFrame API Loader -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+
+  <script>
+    /********************************************************************
+     * 1. PRE-LOADED SONGS & MARKERS DATA (Exact match to Video 1 & Video 2)
+     ********************************************************************/
+    const DEFAULT_SONGS = [
+      {
+        id: 'song-1',
+        title: 'This Is The Day',
+        subtitle: 'This Is The Day (Rehearsal Mix)',
+        artist: 'Lakewood Music',
+        avatarText: 'LM',
+        key: 'Key F',
+        bpm: 124,
+        duration: 283, // 4:43
+        theme: 'light',
+        youtubeId: 'dQw4w9WgXcQ', // Optional fallback ID when switched to YT mode
+        notes: `INTRO DRUM (0:00): 4 bars groove on snare/tom build\nINTRO FULL BAND (0:08): F - Bb/F - C/F - Bb/F\nVERSE 1 (0:16): F  | Bb  | Dm7 | C\nCHORUS (0:47): "This is the day that the Lord has made..."\nF | C | Dm7 | Bb\nMINI INTRO LOOP (1:07 - 1:10): Tight syncopated band hits!`,
+        markers: [
+          { id: 'm1', name: 'Intro Drum', start: 0, end: null, loop: false, caption: '[Music] [Applause]' },
+          { id: 'm2', name: 'Intro Full Band', start: 8, end: null, loop: false, caption: '[Full Band Groove]' },
+          { id: 'm3', name: 'Verse 1', start: 16, end: null, loop: false, caption: "there's a light that shines with hope and" },
+          { id: 'm4', name: 'Verse 2', start: 31, end: null, loop: false, caption: 'Every heart awaken to the sound' },
+          { id: 'm5', name: 'Chorus', start: 47, end: null, loop: false, caption: 'This is the day that the Lord has made!' },
+          { id: 'm6', name: 'mini intro', start: 67, end: 70, loop: true, caption: '[Music] cause there is joy!' },
+          { id: 'm7', name: 'Verse 3', start: 70, end: null, loop: false, caption: 'We will rejoice and be glad in it' },
+          { id: 'm8', name: 'Vamp', start: 86, end: null, loop: false, caption: '[Brass & Guitar Vamp]' },
+          { id: 'm9', name: 'Chorus', start: 90, end: null, loop: false, caption: 'This is the day that the Lord has made!' },
+          { id: 'm10', name: 'Interlude', start: 109, end: null, loop: false, caption: '[Instrumental Interlude]' }
+        ]
+      },
+      {
+        id: 'song-2',
+        title: 'Alamak 3.0 - Rizky Febian | Drum Cam',
+        subtitle: 'Alamak 3.0 - Rizky Febian',
+        artist: 'Chordozora Anugerah Pe...',
+        avatarText: 'CA',
+        key: 'Key Am',
+        bpm: 118,
+        duration: 282, // 4:42
+        theme: 'dark',
+        youtubeId: 'M7lc1UVf-VE',
+        notes: `CHORUS (1:22): Pocket groove + ghost notes\nVERSE 2 (1:40): Hi-hat bark on & of 4\nFILL IN 1/32 (1:43 - 1:48): RLRL KK RLRL KK 32nd-note linear gospel chop into crash on 1:48!\nPractice at 0.5x and 0.75x until clean.`,
+        markers: [
+          { id: 'a1', name: 'Chorus', start: 82, end: null, loop: false, caption: '[Pocket Chorus Groove]' },
+          { id: 'a2', name: 'Verse 2', start: 100, end: null, loop: false, caption: '[Tight Verse Groove]' },
+          { id: 'a3', name: 'Fill in 1/32', start: 103, end: 108, loop: true, caption: '[32nd Note Drum Chop Fill!]' },
+          { id: 'a4', name: 'Verse hits', start: 108, end: null, loop: false, caption: '[Syncopated Band Hits]' },
+          { id: 'a5', name: 'Interlude', start: 176, end: null, loop: false, caption: '[Keyboard & Bass Breakdown]' },
+          { id: 'a6', name: 'Interlude hits', start: 217, end: null, loop: false, caption: '[Final Ensemble Accents]' }
+        ]
+      }
+    ];
+
+    /********************************************************************
+     * 2. APPLICATION STATE
+     ********************************************************************/
+    let songs = [];
+    let currentSongIndex = 0;
+    let currentTime = 0;
+    let isPlaying = false;
+    let playbackSpeed = 1.0;
+    let isMuted = false;
+    let activeLoopMarkerId = null; // ID of marker currently looping A-B
+    let editingMarkerId = null;    // null when adding new marker
+
+    // Player Engine: 'synth' (100% reliable WebAudio + Visualizer) | 'youtube' | 'local'
+    let playerEngine = 'synth';
+    let ytPlayer = null;
+    let ytReady = false;
+    let pendingYtVideoId = null;
+
+    // Web Audio API Synthesizer & Metronome state
+    let audioCtx = null;
+    let metronomeEnabled = false;
+    let lastBeatIndex = -1;
+    let lastSubStepIndex = -1;
+    let tapTimes = [];
+
+    // Animation & Timer references
+    let lastFrameTimestamp = performance.now();
+    let isScrubbing = false;
+
+    /********************************************************************
+     * 3. INITIALIZATION & LOCALSTORAGE PERSISTENCE
+     ********************************************************************/
+    function loadStateFromStorage() {
+      try {
+        const saved = localStorage.getItem('rehearsely_songs_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            songs = parsed;
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not read localStorage, using defaults.', e);
+      }
+      songs = JSON.parse(JSON.stringify(DEFAULT_SONGS));
+    }
+
+    function saveStateToStorage() {
+      try {
+        localStorage.setItem('rehearsely_songs_v1', JSON.stringify(songs));
+      } catch (e) {
+        console.warn('Could not save to localStorage.', e);
+      }
+    }
+
+    function getCurrentSong() {
+      if (!songs || songs.length === 0) {
+        loadStateFromStorage();
+      }
+      return songs[currentSongIndex] || songs[0] || DEFAULT_SONGS[0];
+    }
+
+    /********************************************************************
+     * 4. THEME & SONG SWITCHING
+     ********************************************************************/
+    function applyTheme(themeName) {
+      const shell = document.getElementById('appShell');
+      const icon = document.getElementById('themeIcon');
+      shell.setAttribute('data-theme', themeName);
+      if (themeName === 'dark') {
+        icon.className = 'ph-fill ph-sun text-base text-amber-400';
+      } else {
+        icon.className = 'ph ph-moon text-base';
+      }
+      updateSpeedPillsUI();
+    }
+
+    function toggleTheme() {
+      const shell = document.getElementById('appShell');
+      const next = shell.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      getCurrentSong().theme = next;
+      applyTheme(next);
+      saveStateToStorage();
+      renderMarkersList();
+    }
+
+    function switchPresetSong(songId) {
+      const idx = songs.findIndex(s => s.id === songId);
+      if (idx !== -1) {
+        selectSongByIndex(idx);
+      }
+    }
+
+    function selectSongByIndex(index) {
+      currentSongIndex = index;
+      const song = getCurrentSong();
+
+      // Stop current playback & jump to first marker
+      isPlaying = false;
+      updatePlayButtonUI();
+      activeLoopMarkerId = null;
+      hideLoopToast();
+
+      // Set initial time to first marker start
+      const sorted = getSortedMarkers();
+      currentTime = sorted.length > 0 ? sorted[0].start : 0;
+
+      // Apply song theme
+      applyTheme(song.theme || 'light');
+
+      // Update Desktop Top Bar active preset highlight
+      const btn1 = document.getElementById('presetBtn1');
+      const btn2 = document.getElementById('presetBtn2');
+      if (btn1 && btn2) {
+        if (song.id === 'song-1') {
+          btn1.className = 'px-2.5 py-1 rounded-lg font-medium transition bg-blue-600 text-white';
+          btn2.className = 'px-2.5 py-1 rounded-lg font-medium transition bg-zinc-800 text-zinc-300 hover:bg-zinc-700';
+        } else if (song.id === 'song-2') {
+          btn2.className = 'px-2.5 py-1 rounded-lg font-medium transition bg-red-600 text-white';
+          btn1.className = 'px-2.5 py-1 rounded-lg font-medium transition bg-zinc-800 text-zinc-300 hover:bg-zinc-700';
+        }
+      }
+
+      // Sync YouTube if in YouTube mode
+      if (playerEngine === 'youtube' && ytPlayer && ytReady && song.youtubeId) {
+        ytPlayer.cueVideoById(song.youtubeId, currentTime);
+      }
+
+      renderSongHeader();
+      renderMarkersList();
+      renderTimelineTicks();
+      updateTimelineUI();
+    }
+
+    function renderSongHeader() {
+      const song = getCurrentSong();
+      document.getElementById('songTitleDisplay').textContent = song.title;
+      document.getElementById('songKeyDisplay').textContent = song.key;
+      document.getElementById('songBpmDisplay').textContent = `${song.bpm} BPM`;
+
+      document.getElementById('videoOverlayTitle').textContent = song.subtitle || song.title;
+      document.getElementById('videoOverlayArtist').textContent = song.artist || 'Rehearsely Studio';
+      document.getElementById('channelAvatar').textContent = song.avatarText || 'RS';
+      document.getElementById('totalDurationLabel').textContent = formatTime(song.duration);
+    }
+
+    /********************************************************************
+     * 5. MARKERS RENDERING, JUMPING & LOOPING
+     ********************************************************************/
+    function getSortedMarkers() {
+      const song = getCurrentSong();
+      return [...song.markers].sort((a, b) => a.start - b.start);
+    }
+
+    function getActiveMarkerAtTime(timeSec) {
+      const sorted = getSortedMarkers();
+      if (sorted.length === 0) return null;
+
+      // If a loop marker is actively locked, prioritize it while inside its range
+      if (activeLoopMarkerId) {
+        const loopM = sorted.find(m => m.id === activeLoopMarkerId);
+        if (loopM) return loopM;
+      }
+
+      let current = sorted[0];
+      for (let i = 0; i < sorted.length; i++) {
+        if (timeSec >= sorted[i].start - 0.15) {
+          current = sorted[i];
+        } else {
+          break;
+        }
+      }
+      return current;
+    }
+
+    function renderMarkersList() {
+      const song = getCurrentSong();
+      const sorted = getSortedMarkers();
+      const container = document.getElementById('markersListContainer');
+      const activeMarker = getActiveMarkerAtTime(currentTime);
+      const isDark = document.getElementById('appShell').getAttribute('data-theme') === 'dark';
+
+      document.getElementById('markersCountBadge').textContent = sorted.length;
+
+      if (sorted.length === 0) {
+        container.innerHTML = `
+          <div class="py-12 px-6 text-center">
+            <i class="ph ph-map-pin-line text-3xl mb-2 opacity-40"></i>
+            <p class="text-sm font-semibold">No Markers Yet</p>
+            <p class="text-xs opacity-60 mt-1">Tap "+ Add Marker" or "Quick Drop" while listening to mark sections of this song.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = sorted.map((m) => {
+        const isActive = activeMarker && activeMarker.id === m.id;
+        const isLoopingThis = activeLoopMarkerId === m.id;
+        const hasRange = m.end !== null && m.end > m.start;
+        const timeText = hasRange
+          ? `${formatTime(m.start)} - ${formatTime(m.end)}`
+          : formatTime(m.start);
+
+        const rowBg = isActive ? 'var(--accent-soft)' : 'transparent';
+        const titleColor = isActive
+          ? (isDark ? '#facc15' : 'var(--accent)')
+          : 'var(--text-primary)';
+
+        return `
+          <div
+            id="marker-row-${m.id}"
+            onclick="handleMarkerRowClick('${m.id}')"
+            class="px-4 py-3 flex items-center justify-between gap-2 cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+            style="background-color: ${rowBg};"
+          >
+            <!-- Left Side: Drag Handle + Equalizer (when active) + Title -->
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <i class="ph-bold ph-dots-six-vertical text-base opacity-35 shrink-0"></i>
+
+              ${isActive ? `
+                <div class="w-4 h-4 flex items-end justify-center gap-[2px] shrink-0 ${!isPlaying ? 'eq-paused' : ''}">
+                  <span class="w-[3px] rounded-full eq-bar-1" style="background-color: ${titleColor};"></span>
+                  <span class="w-[3px] rounded-full eq-bar-2" style="background-color: ${titleColor};"></span>
+                  <span class="w-[3px] rounded-full eq-bar-3" style="background-color: ${titleColor};"></span>
+                </div>
+              ` : ''}
+
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-semibold text-[14px] truncate" style="color: ${titleColor};">
+                    ${escapeHtml(m.name)}
+                  </span>
+                  ${isLoopingThis ? `
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-white" style="background-color: var(--accent);">
+                      Looping
+                    </span>
+                  ` : ''}
+                </div>
+                ${isDark ? `
+                  <div class="font-mono-time text-xs opacity-65 mt-0.5">${timeText}</div>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- Right Side: Timestamp (Light layout) + Loop Toggle + Edit + Delete -->
+            <div class="flex items-center gap-2 shrink-0" onclick="event.stopPropagation()">
+              ${hasRange ? `
+                <button
+                  onclick="toggleMarkerLoop('${m.id}', event)"
+                  title="Toggle Loop (${timeText})"
+                  class="p-1.5 rounded-lg transition ${isLoopingThis ? 'text-white shadow-sm' : 'opacity-65 hover:opacity-100'}"
+                  style="${isLoopingThis ? 'background-color: var(--accent);' : 'color: var(--text-secondary);'}"
+                >
+                  <i class="ph-bold ph-arrows-clockwise text-sm"></i>
+                </button>
+              ` : `
+                <button
+                  onclick="enableInstantLoopForMarker('${m.id}', event)"
+                  title="Loop this section"
+                  class="p-1.5 rounded-lg opacity-45 hover:opacity-100 transition"
+                  style="color: var(--text-secondary);"
+                >
+                  <i class="ph-bold ph-arrows-clockwise text-sm"></i>
+                </button>
+              `}
+
+              ${!isDark ? `
+                <span class="font-mono-time text-xs font-medium px-1" style="color: ${isActive ? 'var(--accent)' : 'var(--text-secondary)'};">
+                  ${timeText}
+                </span>
+              ` : ''}
+
+              <button
+                onclick="openMarkerModal('${m.id}')"
+                title="Edit Marker"
+                class="p-1.5 rounded-lg opacity-55 hover:opacity-100 transition"
+                style="color: var(--text-secondary);"
+              >
+                <i class="ph ph-pencil-simple text-sm"></i>
+              </button>
+
+              <button
+                onclick="deleteMarker('${m.id}')"
+                title="Delete Marker"
+                class="p-1.5 rounded-lg opacity-55 hover:opacity-100 hover:text-red-500 transition"
+                style="color: var(--text-secondary);"
+              >
+                <i class="ph ph-trash text-sm"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function handleMarkerRowClick(markerId) {
+      const song = getCurrentSong();
+      const marker = song.markers.find(m => m.id === markerId);
+      if (!marker) return;
+
+      // If marker has a configured loop flag & range, activate loop automatically on click
+      if (marker.loop && marker.end && marker.end > marker.start) {
+        activeLoopMarkerId = marker.id;
+        showLoopToast(marker);
+      } else if (activeLoopMarkerId && activeLoopMarkerId !== marker.id) {
+        activeLoopMarkerId = null;
+        hideLoopToast();
+      }
+
+      seekTo(marker.start);
+      if (!isPlaying) {
+        togglePlayPause(true);
+      }
+      renderMarkersList();
+      updateTimelineUI();
+    }
+
+    function toggleMarkerLoop(markerId, event) {
+      if (event) event.stopPropagation();
+      const song = getCurrentSong();
+      const marker = song.markers.find(m => m.id === markerId);
+      if (!marker) return;
+
+      if (activeLoopMarkerId === markerId) {
+        clearActiveLoop();
+      } else {
+        // Ensure marker has an end time; if not, set end time to next marker or +5s
+        if (!marker.end || marker.end <= marker.start) {
+          const sorted = getSortedMarkers();
+          const idx = sorted.findIndex(m => m.id === markerId);
+          const nextM = sorted[idx + 1];
+          marker.end = nextM ? nextM.start : Math.min(song.duration, marker.start + 5);
+          marker.loop = true;
+        }
+        activeLoopMarkerId = marker.id;
+        seekTo(marker.start);
+        if (!isPlaying) togglePlayPause(true);
+        showLoopToast(marker);
+      }
+
+      renderMarkersList();
+      updateTimelineUI();
+    }
+
+    function enableInstantLoopForMarker(markerId, event) {
+      toggleMarkerLoop(markerId, event);
+    }
+
+    function toggleLoopCurrentSection() {
+      const active = getActiveMarkerAtTime(currentTime);
+      if (!active) return;
+      toggleMarkerLoop(active.id);
+    }
+
+    function clearActiveLoop(event) {
+      if (event) event.stopPropagation();
+      activeLoopMarkerId = null;
+      hideLoopToast();
+      renderMarkersList();
+      updateTimelineUI();
+    }
+
+    function showLoopToast(marker) {
+      const banner = document.getElementById('loopToastBanner');
+      const textEl = document.getElementById('loopToastText');
+      const rangeStr = `${formatTime(marker.start)} – ${formatTime(marker.end)}`;
+      textEl.textContent = `${marker.name} (${rangeStr})`;
+      banner.classList.remove('hidden');
+      banner.classList.add('toast-enter');
+    }
+
+    function hideLoopToast() {
+      const banner = document.getElementById('loopToastBanner');
+      banner.classList.add('hidden');
+    }
+
+    /********************************************************************
+     * 6. TIMELINE SCRUBBER & MARKER TICKS
+     ********************************************************************/
+    function renderTimelineTicks() {
+      const song = getCurrentSong();
+      const container = document.getElementById('timelineTicksContainer');
+      const sorted = getSortedMarkers();
+
+      container.innerHTML = sorted.map(m => {
+        const pct = Math.max(0, Math.min(100, (m.start / song.duration) * 100));
+        return `
+          <div
+            class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3.5 rounded-full opacity-75"
+            style="left: ${pct}%; background-color: var(--text-secondary);"
+          ></div>
+        `;
+      }).join('');
+    }
+
+    function updateTimelineUI() {
+      const song = getCurrentSong();
+      const pct = Math.max(0, Math.min(100, (currentTime / song.duration) * 100));
+
+      document.getElementById('timelineFill').style.width = `${pct}%`;
+      document.getElementById('timelineThumb').style.left = `${pct}%`;
+      document.getElementById('currentTimeLabel').textContent = formatTime(currentTime);
+      document.getElementById('videoTimestampBadge').textContent = `${formatTime(currentTime)} / ${formatTime(song.duration)}`;
+
+      // Update active marker label & caption
+      const activeMarker = getActiveMarkerAtTime(currentTime);
+      const bottomLabel = document.getElementById('bottomActiveMarkerLabel');
+      const bottomRange = document.getElementById('bottomActiveLoopRange');
+      const bottomIcon = document.getElementById('bottomStatusIcon');
+      const stopLoopPill = document.getElementById('stopLoopPillBtn');
+      const loopHighlight = document.getElementById('timelineLoopHighlight');
+      const bottomLoopBtn = document.getElementById('bottomLoopBtn');
+
+      if (activeMarker) {
+        bottomLabel.textContent = activeMarker.name;
+        document.getElementById('hudCurrentMarkerName').textContent = activeMarker.name;
+        if (activeMarker.caption) {
+          document.getElementById('captionPill').textContent = activeMarker.caption;
+        }
+      }
+
+      if (activeLoopMarkerId) {
+        const loopM = song.markers.find(m => m.id === activeLoopMarkerId);
+        if (loopM && loopM.end) {
+          bottomIcon.className = 'ph-bold ph-arrows-clockwise text-sm animate-spin';
+          bottomRange.textContent = `${formatTime(loopM.start)} - ${formatTime(loopM.end)}`;
+          stopLoopPill.classList.remove('hidden');
+
+          const startPct = (loopM.start / song.duration) * 100;
+          const widthPct = Math.max(1, ((loopM.end - loopM.start) / song.duration) * 100);
+          loopHighlight.style.left = `${startPct}%`;
+          loopHighlight.style.width = `${widthPct}%`;
+          loopHighlight.classList.remove('hidden');
+
+          bottomLoopBtn.style.backgroundColor = 'var(--accent)';
+          bottomLoopBtn.style.color = '#ffffff';
+          bottomLoopBtn.style.borderColor = 'var(--accent)';
+        }
+      } else {
+        bottomIcon.className = 'ph-fill ph-music-notes text-sm';
+        bottomRange.textContent = '';
+        stopLoopPill.classList.add('hidden');
+        loopHighlight.classList.add('hidden');
+
+        bottomLoopBtn.style.backgroundColor = 'var(--app-surface)';
+        bottomLoopBtn.style.color = 'var(--text-secondary)';
+        bottomLoopBtn.style.borderColor = 'var(--app-border)';
+      }
+    }
+
+    function startTimelineScrub(e) {
+      isScrubbing = true;
+      handleTimelinePointer(e);
+      window.addEventListener('mousemove', handleTimelinePointer);
+      window.addEventListener('mouseup', stopTimelineScrub);
+      window.addEventListener('touchmove', handleTimelinePointer, { passive: false });
+      window.addEventListener('touchend', stopTimelineScrub);
+    }
+
+    function handleTimelinePointer(e) {
+      if (!isScrubbing) return;
+      const track = document.getElementById('timelineTrack');
+      const rect = track.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const newTime = ratio * getCurrentSong().duration;
+      seekTo(newTime);
+    }
+
+    function stopTimelineScrub() {
+      isScrubbing = false;
+      window.removeEventListener('mousemove', handleTimelinePointer);
+      window.removeEventListener('mouseup', stopTimelineScrub);
+      window.removeEventListener('touchmove', handleTimelinePointer);
+      window.removeEventListener('touchend', stopTimelineScrub);
+    }
+
+    /********************************************************************
+     * 7. PLAYBACK ENGINE (SYNTH GROOVE, YOUTUBE API, LOCAL VIDEO)
+     ********************************************************************/
+    function ensureAudioContext() {
+      if (!audioCtx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioCtx();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function togglePlayPause(forceState) {
+      ensureAudioContext();
+      isPlaying = typeof forceState === 'boolean' ? forceState : !isPlaying;
+
+      if (playerEngine === 'youtube' && ytPlayer && ytReady) {
+        if (isPlaying) ytPlayer.playVideo();
+        else ytPlayer.pauseVideo();
+      } else if (playerEngine === 'local') {
+        const vid = document.getElementById('localVideoPlayer');
+        if (isPlaying) vid.play().catch(() => {});
+        else vid.pause();
+      }
+
+      updatePlayButtonUI();
+      renderMarkersList();
+    }
+
+    function updatePlayButtonUI() {
+      const mainIcon = document.getElementById('mainPlayIcon');
+      const centerIcon = document.getElementById('videoCenterIcon');
+      if (isPlaying) {
+        mainIcon.className = 'ph-fill ph-pause text-2xl';
+        centerIcon.className = 'ph-fill ph-pause text-2xl';
+      } else {
+        mainIcon.className = 'ph-fill ph-play text-2xl ml-0.5';
+        centerIcon.className = 'ph-fill ph-play text-2xl ml-0.5';
+      }
+    }
+
+    function seekTo(targetSeconds) {
+      const song = getCurrentSong();
+      currentTime = Math.max(0, Math.min(song.duration, targetSeconds));
+      lastBeatIndex = -1;
+      lastSubStepIndex = -1;
+
+      if (playerEngine === 'youtube' && ytPlayer && ytReady) {
+        ytPlayer.seekTo(currentTime, true);
+      } else if (playerEngine === 'local') {
+        const vid = document.getElementById('localVideoPlayer');
+        vid.currentTime = currentTime;
+      }
+
+      updateTimelineUI();
+      renderMarkersList();
+    }
+
+    function seekRelative(deltaSeconds) {
+      seekTo(currentTime + deltaSeconds);
+    }
+
+    function jumpToAdjacentMarker(direction) {
+      const sorted = getSortedMarkers();
+      if (sorted.length === 0) return;
+
+      if (direction < 0) {
+        // Find previous marker
+        let prev = sorted[0];
+        for (let i = sorted.length - 1; i >= 0; i--) {
+          if (sorted[i].start < currentTime - 1.0) {
+            prev = sorted[i];
+            break;
+          }
+        }
+        handleMarkerRowClick(prev.id);
+      } else {
+        // Find next marker
+        let next = sorted[sorted.length - 1];
+        for (let i = 0; i < sorted.length; i++) {
+          if (sorted[i].start > currentTime + 0.5) {
+            next = sorted[i];
+            break;
+          }
+        }
+        handleMarkerRowClick(next.id);
+      }
+    }
+
+    /********************************************************************
+     * 8. PLAYBACK SPEED POPOVER CONTROLS (0.25x - 1.5x)
+     ********************************************************************/
+    function toggleSpeedPopover(forceState) {
+      const pop = document.getElementById('speedPopover');
+      const show = typeof forceState === 'boolean' ? forceState : pop.classList.contains('hidden');
+      if (show) {
+        pop.classList.remove('hidden');
+        updateSpeedPillsUI();
+      } else {
+        pop.classList.add('hidden');
+      }
+    }
+
+    function setPlaybackSpeed(rate) {
+      playbackSpeed = Math.round(rate * 100) / 100;
+      const formatted = `${playbackSpeed}x`;
+
+      document.getElementById('speedBigReadout').textContent = formatted;
+      document.getElementById('speedTriggerText').textContent = formatted;
+      document.getElementById('speedRangeSlider').value = playbackSpeed;
+
+      if (playerEngine === 'youtube' && ytPlayer && ytReady && ytPlayer.setPlaybackRate) {
+        ytPlayer.setPlaybackRate(playbackSpeed);
+      } else if (playerEngine === 'local') {
+        document.getElementById('localVideoPlayer').playbackRate = playbackSpeed;
+      }
+
+      updateSpeedPillsUI();
+    }
+
+    function updateSpeedPillsUI() {
+      const pills = document.querySelectorAll('.speed-pill');
+      pills.forEach(btn => {
+        const val = parseFloat(btn.getAttribute('data-speed-pill'));
+        if (Math.abs(val - playbackSpeed) < 0.01) {
+          btn.style.backgroundColor = 'var(--accent)';
+          btn.style.color = '#ffffff';
+        } else {
+          btn.style.backgroundColor = 'var(--app-surface)';
+          btn.style.color = 'var(--text-secondary)';
+        }
+      });
+    }
+
+    function toggleMute() {
+      isMuted = !isMuted;
+      const icon = document.getElementById('muteIcon');
+      icon.className = isMuted ? 'ph-fill ph-speaker-slash text-sm text-red-400' : 'ph-fill ph-speaker-high text-sm';
+
+      if (playerEngine === 'youtube' && ytPlayer && ytReady) {
+        if (isMuted) ytPlayer.mute();
+        else ytPlayer.unMute();
+      } else if (playerEngine === 'local') {
+        document.getElementById('localVideoPlayer').muted = isMuted;
+      }
+    }
+
+    function toggleMetronome() {
+      ensureAudioContext();
+      metronomeEnabled = !metronomeEnabled;
+      const dot = document.getElementById('metroDot');
+      const btn = document.getElementById('metronomeBtn');
+      if (metronomeEnabled) {
+        dot.classList.remove('hidden');
+        btn.style.borderColor = 'var(--accent)';
+        btn.style.color = 'var(--accent)';
+      } else {
+        dot.classList.add('hidden');
+        btn.style.borderColor = 'var(--app-border)';
+        btn.style.color = 'var(--text-primary)';
+      }
+    }
+
+    /********************************************************************
+     * 9. WEB AUDIO SYNTHESIZER BAND & DRUM ENGINE
+     ********************************************************************/
+    function triggerDrumAndBandStep(stepIndex, song) {
+      if (isMuted || !audioCtx) return;
+
+      const now = audioCtx.currentTime;
+      const stepInBar = stepIndex % 16; // 16th note grid
+      const activeMarker = getActiveMarkerAtTime(currentTime);
+      const markerName = activeMarker ? activeMarker.name.toLowerCase() : '';
+      const isDrumFill = markerName.includes('fill') || markerName.includes('mini intro');
+
+      // 1. Kick Drum (Steps 0, 6, 8, 10 or rapid linear fill)
+      if (stepInBar === 0 || stepInBar === 8 || (stepInBar === 10 && song.id === 'song-2') || (isDrumFill && stepInBar % 4 === 2)) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(135, now);
+        osc.frequency.exponentialRampToValueAtTime(38, now + 0.11);
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      }
+
+      // 2. Snare / Rimshot (Steps 4, 12, or 16th-note fill barrage)
+      if (stepInBar === 4 || stepInBar === 12 || (isDrumFill && (stepInBar % 2 === 1 || stepInBar > 11))) {
+        // Noise burst
+        const bufferSize = audioCtx.sampleRate * 0.08;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 700;
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(isDrumFill ? 0.28 : 0.32, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+        noise.start(now);
+      }
+
+      // 3. Hi-Hat (Every 8th note or 16th note)
+      if (stepInBar % 2 === 0 || isDrumFill) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(6800, now);
+        gain.gain.setValueAtTime(0.04, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.035);
+      }
+
+      // 4. Warm Chord Pad / Bass Note on Quarter Beats (unless "Intro Drum" solo)
+      if (!markerName.includes('intro drum') && (stepInBar === 0 || stepInBar === 8)) {
+        const rootFreqs = song.id === 'song-1'
+          ? [174.61, 233.08, 293.66, 261.63] // F, Bb, Dm, C
+          : [220.00, 174.61, 130.81, 196.00]; // Am, F, C, G
+        const barIdx = Math.floor(stepIndex / 16) % rootFreqs.length;
+        const freq = rootFreqs[barIdx];
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.005, now + 0.32);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.34);
+      }
+
+      // 5. Optional Metronome Click on Quarter Beats
+      if (metronomeEnabled && stepInBar % 4 === 0) {
+        const clickOsc = audioCtx.createOscillator();
+        const clickGain = audioCtx.createGain();
+        clickOsc.frequency.setValueAtTime(stepInBar === 0 ? 1400 : 950, now);
+        clickGain.gain.setValueAtTime(0.22, now);
+        clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+        clickOsc.connect(clickGain);
+        clickGain.connect(audioCtx.destination);
+        clickOsc.start(now);
+        clickOsc.stop(now + 0.035);
+
+        const metroBtn = document.getElementById('metronomeBtn');
+        metroBtn.classList.remove('metro-flash');
+        void metroBtn.offsetWidth;
+        metroBtn.classList.add('metro-flash');
+      }
+    }
+
+    /********************************************************************
+     * 10. YOUTUBE IFRAME API & ENGINE SWITCHING
+     ********************************************************************/
+    function onYouTubeIframeAPIReady() {
+      initOrLoadYouTubePlayer();
+    }
+
+    function initOrLoadYouTubePlayer(forceVideoId) {
+      const currentSong = getCurrentSong();
+      const targetVideoId = forceVideoId || pendingYtVideoId || (currentSong && currentSong.youtubeId) || 'M7lc1UVf-VE';
+
+      if (typeof YT === 'undefined' || !YT.Player) {
+        pendingYtVideoId = targetVideoId;
+        return;
+      }
+
+      if (ytPlayer && ytReady && typeof ytPlayer.loadVideoById === 'function') {
+        document.getElementById('ytErrorOverlay').classList.add('hidden');
+        ytPlayer.loadVideoById({
+          videoId: targetVideoId,
+          startSeconds: currentTime || 0
+        });
+        return;
+      }
+
+      if (ytPlayer && !ytReady) {
+        pendingYtVideoId = targetVideoId;
+        return;
+      }
+
+      const playerVars = {
+        playsinline: 1,
+        controls: 1,
+        rel: 0,
+        modestbranding: 1,
+        enablejsapi: 1
+      };
+      if (window.location.origin && window.location.origin.startsWith('http')) {
+        playerVars.origin = window.location.origin;
+      }
+
+      ytPlayer = new YT.Player('ytPlayerContainer', {
+        height: '100%',
+        width: '100%',
+        host: 'https://www.youtube.com',
+        videoId: targetVideoId,
+        playerVars: playerVars,
+        events: {
+          onReady: (event) => {
+            ytReady = true;
+            document.getElementById('ytErrorOverlay').classList.add('hidden');
+            if (pendingYtVideoId) {
+              const vidToLoad = pendingYtVideoId;
+              pendingYtVideoId = null;
+              event.target.loadVideoById(vidToLoad, currentTime || 0);
+            } else if (playerEngine === 'youtube') {
+              event.target.playVideo();
+            }
+          },
+          onStateChange: (e) => {
+            if (playerEngine !== 'youtube') return;
+            if (e.data === YT.PlayerState.PLAYING) {
+              document.getElementById('ytErrorOverlay').classList.add('hidden');
+              isPlaying = true;
+              const dur = ytPlayer.getDuration();
+              if (dur && dur > 1) {
+                getCurrentSong().duration = Math.round(dur);
+                document.getElementById('totalDurationLabel').textContent = formatTime(getCurrentSong().duration);
+                renderTimelineTicks();
+              }
+              updatePlayButtonUI();
+            } else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) {
+              isPlaying = false;
+              updatePlayButtonUI();
+            }
+          },
+          onError: (err) => {
+            // Error 101 or 150 = Video owner restricts playback on embedded players outside YouTube
+            // Error 2 = Invalid video ID, Error 100 = Video not found / private
+            const errOverlay = document.getElementById('ytErrorOverlay');
+            const errTitle = document.getElementById('ytErrorTitle');
+            const errDesc = document.getElementById('ytErrorDesc');
+            errOverlay.classList.remove('hidden');
+
+            if (err.data === 101 || err.data === 150) {
+              errTitle.textContent = 'Blocked by Music Label (Error ' + err.data + ')';
+              errDesc.textContent = 'This artist or record label disabled embedding outside of YouTube. Try a Drum Cover / Rehearsal Cam link, or upload the audio file directly.';
+            } else {
+              errTitle.textContent = 'Video Unavailable (Error ' + err.data + ')';
+              errDesc.textContent = 'This YouTube video is private, unavailable, or restricted in this browser frame.';
+            }
+            isPlaying = false;
+            updatePlayButtonUI();
+          }
+        }
+      });
+    }
+
+    function setPlayerEngine(mode) {
+      playerEngine = mode;
+      const canvas = document.getElementById('stageCanvas');
+      const ytWrap = document.getElementById('youtubeWrapper');
+      const localVid = document.getElementById('localVideoPlayer');
+      const badge = document.getElementById('audioModeBadge');
+      const label = document.getElementById('engineLabelText');
+      const hudOverlay = document.getElementById('videoHudOverlay');
+
+      canvas.classList.add('hidden');
+      ytWrap.classList.add('hidden');
+      localVid.classList.add('hidden');
+
+      if (mode === 'synth') {
+        canvas.classList.remove('hidden');
+        hudOverlay.classList.remove('pointer-events-none');
+        badge.textContent = 'Synth Groove';
+        label.textContent = 'Studio Synth';
+        if (ytPlayer && ytReady && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+        localVid.pause();
+      } else if (mode === 'youtube') {
+        ytWrap.classList.remove('hidden');
+        document.getElementById('ytErrorOverlay').classList.add('hidden');
+        badge.textContent = 'YouTube Player';
+        label.textContent = 'YouTube Mode';
+        localVid.pause();
+        const vidId = getCurrentSong().youtubeId || 'M7lc1UVf-VE';
+        pendingYtVideoId = vidId;
+        initOrLoadYouTubePlayer(vidId);
+      } else if (mode === 'local') {
+        localVid.classList.remove('hidden');
+        badge.textContent = 'Local Media';
+        label.textContent = 'Local File';
+        if (ytPlayer && ytReady && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+      }
+    }
+
+    function cyclePlayerEngine() {
+      if (playerEngine === 'synth') {
+        setPlayerEngine('youtube');
+      } else {
+        setPlayerEngine('synth');
+      }
+    }
+
+    function extractYouTubeId(urlOrId) {
+      if (!urlOrId) return null;
+      const trimmed = urlOrId.trim();
+      if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+
+      try {
+        const parsedUrl = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+        if (parsedUrl.hostname.includes('youtu.be')) {
+          const id = parsedUrl.pathname.split('/').filter(Boolean)[0];
+          if (id && id.length === 11) return id;
+        }
+        const vParam = parsedUrl.searchParams.get('v');
+        if (vParam && vParam.length === 11) return vParam;
+
+        const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
+        const specialIdx = pathParts.findIndex(p => ['embed', 'shorts', 'live', 'v'].includes(p));
+        if (specialIdx !== -1 && pathParts[specialIdx + 1]) {
+          const candidate = pathParts[specialIdx + 1].substring(0, 11);
+          if (/^[a-zA-Z0-9_-]{11}$/.test(candidate)) return candidate;
+        }
+      } catch (e) {
+        // Fallback regex if URL constructor fails
+      }
+
+      const regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|live\/|watch\?v=|watch\?.+&v=))([a-zA-Z0-9_-]{11})/;
+      const match = trimmed.match(regExp);
+      return match ? match[1] : null;
+    }
+
+    function clearYtInputError() {
+      document.getElementById('ytUrlInput').style.borderColor = 'var(--app-border)';
+      document.getElementById('ytUrlErrorMsg').classList.add('hidden');
+    }
+
+    function quickFillYtSample(url, title, meta) {
+      document.getElementById('ytUrlInput').value = url;
+      document.getElementById('newSongTitleInput').value = title;
+      document.getElementById('newSongMetaInput').value = meta;
+      clearYtInputError();
+    }
+
+    async function loadYouTubeFromInput() {
+      const rawUrl = document.getElementById('ytUrlInput').value;
+      const customTitle = document.getElementById('newSongTitleInput').value.trim();
+      const customMeta = document.getElementById('newSongMetaInput').value.trim();
+
+      const videoId = extractYouTubeId(rawUrl);
+      if (!videoId) {
+        document.getElementById('ytUrlInput').style.borderColor = '#ef4444';
+        document.getElementById('ytUrlErrorMsg').classList.remove('hidden');
+        return;
+      }
+
+      const song = getCurrentSong();
+      song.youtubeId = videoId;
+
+      if (customTitle) {
+        song.title = customTitle;
+        song.subtitle = customTitle;
+      } else {
+        // Auto-fetch YouTube video title and channel name via public oEmbed API
+        const statusEl = document.getElementById('ytLoadStatus');
+        statusEl.classList.remove('hidden');
+        try {
+          const res = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.title) {
+              song.title = data.title;
+              song.subtitle = data.title;
+            }
+            if (data.author_name) {
+              song.artist = data.author_name;
+              song.avatarText = data.author_name.substring(0, 2).toUpperCase();
+            }
+          }
+        } catch (err) {
+          // Ignore oEmbed network errors
+        } finally {
+          statusEl.classList.add('hidden');
+        }
+      }
+
+      if (customMeta) {
+        const parts = customMeta.split('•');
+        if (parts[0]) song.key = parts[0].trim();
+        if (parts[1]) song.bpm = parseInt(parts[1], 10) || song.bpm;
+      }
+
+      currentTime = 0;
+      activeLoopMarkerId = null;
+      hideLoopToast();
+
+      saveStateToStorage();
+      renderSongHeader();
+      setPlayerEngine('youtube');
+      isPlaying = true;
+      updatePlayButtonUI();
+      closeSourceModal();
+    }
+
+    function handleLocalFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const vid = document.getElementById('localVideoPlayer');
+      vid.src = url;
+      vid.onloadedmetadata = () => {
+        const song = getCurrentSong();
+        song.title = file.name.replace(/\.[^/.]+$/, '');
+        song.subtitle = song.title;
+        if (vid.duration && isFinite(vid.duration)) {
+          song.duration = Math.round(vid.duration);
+        }
+        renderSongHeader();
+        renderTimelineTicks();
+        setPlayerEngine('local');
+        closeSourceModal();
+      };
+    }
+
+    /********************************************************************
+     * 11. STAGE & DRUM CAM VISUALIZER CANVAS + MAIN LOOP
+     ********************************************************************/
+    function drawStageVisualizer() {
+      const canvas = document.getElementById('stageCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.getBoundingClientRect();
+      if (canvas.width !== rect.width || canvas.height !== rect.height) {
+        canvas.width = rect.width || 420;
+        canvas.height = rect.height || 236;
+      }
+
+      const w = canvas.width;
+      const h = canvas.height;
+      const song = getCurrentSong();
+      const isDarkSong = song.id === 'song-2' || song.theme === 'dark';
+      const activeMarker = getActiveMarkerAtTime(currentTime);
+
+      // Background stage lighting gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      if (isDarkSong) {
+        grad.addColorStop(0, '#180c14');
+        grad.addColorStop(0.5, '#0b0b10');
+        grad.addColorStop(1, '#050507');
+      } else {
+        grad.addColorStop(0, '#2b1d16');
+        grad.addColorStop(0.55, '#1b2434');
+        grad.addColorStop(1, '#0e131d');
+      }
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Animated Spotlight Beams
+      const beatDuration = 60 / song.bpm;
+      const beatPhase = (currentTime % beatDuration) / beatDuration;
+      const pulse = isPlaying ? Math.exp(-beatPhase * 4) : 0.2;
+
+      for (let i = 0; i < 3; i++) {
+        ctx.save();
+        const xOrigin = (w * (i + 1)) / 4;
+        const sway = Math.sin(currentTime * 1.4 + i) * 35;
+        const beamGrad = ctx.createLinearGradient(xOrigin, 0, xOrigin + sway, h);
+        const beamColor = isDarkSong
+          ? `rgba(239, 68, 68, ${0.12 + pulse * 0.14})`
+          : `rgba(96, 165, 250, ${0.12 + pulse * 0.14})`;
+        beamGrad.addColorStop(0, beamColor);
+        beamGrad.addColorStop(1, 'transparent');
+
+        ctx.fillStyle = beamGrad;
+        ctx.beginPath();
+        ctx.moveTo(xOrigin - 12, 0);
+        ctx.lineTo(xOrigin + 12, 0);
+        ctx.lineTo(xOrigin + sway + 85, h);
+        ctx.lineTo(xOrigin + sway - 85, h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Drum Kit / Stage Silhouette & Live Spectrum Bars at Bottom
+      const numBars = 36;
+      const barWidth = (w - 40) / numBars;
+      for (let i = 0; i < numBars; i++) {
+        const wave = isPlaying
+          ? Math.abs(Math.sin(currentTime * 8 + i * 0.45)) * (0.4 + pulse * 0.6)
+          : 0.08;
+        const barH = Math.max(4, wave * (h * 0.34));
+        const x = 20 + i * barWidth;
+        const y = h - 32 - barH;
+
+        ctx.fillStyle = isDarkSong
+          ? `rgba(239, 68, 68, ${0.35 + wave * 0.5})`
+          : `rgba(59, 130, 246, ${0.35 + wave * 0.5})`;
+        ctx.beginPath();
+        ctx.roundRect(x, y, barWidth - 3, barH, 3);
+        ctx.fill();
+      }
+
+      // Center Stage Section Banner
+      if (activeMarker) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.font = '700 11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`CURRENT SECTION: ${activeMarker.name.toUpperCase()}`, w / 2, h * 0.28);
+        ctx.restore();
+      }
+    }
+
+    function mainAnimationLoop(now) {
+      const dt = (now - lastFrameTimestamp) / 1000;
+      lastFrameTimestamp = now;
+
+      const song = getCurrentSong();
+
+      if (isPlaying && !isScrubbing) {
+        if (playerEngine === 'synth') {
+          currentTime += dt * playbackSpeed;
+
+          // Trigger Web Audio 16th-note groove steps
+          const secondsPerBeat = 60 / song.bpm;
+          const secondsPer16th = secondsPerBeat / 4;
+          const currentStepIndex = Math.floor(currentTime / secondsPer16th);
+          if (currentStepIndex !== lastSubStepIndex) {
+            lastSubStepIndex = currentStepIndex;
+            triggerDrumAndBandStep(currentStepIndex, song);
+          }
+        } else if (playerEngine === 'youtube' && ytPlayer && ytReady && ytPlayer.getCurrentTime) {
+          currentTime = ytPlayer.getCurrentTime() || currentTime;
+        } else if (playerEngine === 'local') {
+          const vid = document.getElementById('localVideoPlayer');
+          currentTime = vid.currentTime;
+        }
+
+        // Check Section Loop Boundary (A-B Loop)
+        if (activeLoopMarkerId) {
+          const loopMarker = song.markers.find(m => m.id === activeLoopMarkerId);
+          if (loopMarker && loopMarker.end && currentTime >= loopMarker.end) {
+            seekTo(loopMarker.start);
+          }
+        }
+
+        // End of song wrap
+        if (currentTime >= song.duration) {
+          if (activeLoopMarkerId) {
+            const loopMarker = song.markers.find(m => m.id === activeLoopMarkerId);
+            seekTo(loopMarker ? loopMarker.start : 0);
+          } else {
+            currentTime = 0;
+            togglePlayPause(false);
+          }
+        }
+
+        updateTimelineUI();
+
+        // Highlight active marker row if section changed
+        const activeM = getActiveMarkerAtTime(currentTime);
+        if (activeM && window._lastRenderedActiveMarkerId !== activeM.id) {
+          window._lastRenderedActiveMarkerId = activeM.id;
+          renderMarkersList();
+        }
+      }
+
+      if (playerEngine === 'synth') {
+        drawStageVisualizer();
+      }
+
+      requestAnimationFrame(mainAnimationLoop);
+    }
+
+    /********************************************************************
+     * 12. ADD / EDIT / QUICK-DROP MARKER MODALS
+     ********************************************************************/
+    function quickDropMarker() {
+      const song = getCurrentSong();
+      const timeSec = Math.floor(currentTime);
+      const count = song.markers.length + 1;
+      const newMarker = {
+        id: 'm_' + Date.now(),
+        name: `Section ${count}`,
+        start: timeSec,
+        end: null,
+        loop: false,
+        caption: `[Section ${count}]`
+      };
+      song.markers.push(newMarker);
+      saveStateToStorage();
+      renderMarkersList();
+      renderTimelineTicks();
+      updateTimelineUI();
+    }
+
+    function openMarkerModal(markerId = null) {
+      editingMarkerId = markerId;
+      const modal = document.getElementById('markerModal');
+      const titleEl = document.getElementById('markerModalTitle');
+      const nameIn = document.getElementById('markerNameInput');
+      const startIn = document.getElementById('markerStartInput');
+      const endIn = document.getElementById('markerEndInput');
+      const loopCheck = document.getElementById('markerLoopCheckbox');
+
+      if (markerId) {
+        const marker = getCurrentSong().markers.find(m => m.id === markerId);
+        if (!marker) return;
+        titleEl.textContent = 'Edit Marker';
+        nameIn.value = marker.name;
+        startIn.value = formatTime(marker.start);
+        endIn.value = marker.end !== null ? formatTime(marker.end) : '';
+        loopCheck.checked = Boolean(marker.loop && marker.end);
+      } else {
+        titleEl.textContent = 'Add Song Marker';
+        nameIn.value = '';
+        const startSec = Math.floor(currentTime);
+        startIn.value = formatTime(startSec);
+        endIn.value = formatTime(Math.min(getCurrentSong().duration, startSec + 5));
+        loopCheck.checked = false;
+      }
+
+      modal.classList.remove('hidden');
+      setTimeout(() => nameIn.focus(), 60);
+    }
+
+    function closeMarkerModal() {
+      document.getElementById('markerModal').classList.add('hidden');
+      editingMarkerId = null;
+    }
+
+    function fillMarkerLabel(label) {
+      document.getElementById('markerNameInput').value = label;
+    }
+
+    function captureCurrentToInput(inputId) {
+      document.getElementById(inputId).value = formatTime(Math.floor(currentTime));
+    }
+
+    function nudgeTimeInput(inputId, deltaSec) {
+      const input = document.getElementById(inputId);
+      const currentVal = parseTimeInput(input.value) ?? Math.floor(currentTime);
+      const nextVal = Math.max(0, Math.min(getCurrentSong().duration, currentVal + deltaSec));
+      input.value = formatTime(nextVal);
+    }
+
+    function saveMarkerFromModal() {
+      const song = getCurrentSong();
+      const name = document.getElementById('markerNameInput').value.trim() || 'New Marker';
+      const startSec = parseTimeInput(document.getElementById('markerStartInput').value) ?? Math.floor(currentTime);
+      const endRaw = document.getElementById('markerEndInput').value.trim();
+      const loopChecked = document.getElementById('markerLoopCheckbox').checked;
+
+      let endSec = endRaw ? parseTimeInput(endRaw) : null;
+      if (loopChecked && (endSec === null || endSec <= startSec)) {
+        endSec = Math.min(song.duration, startSec + 5);
+      }
+      if (!loopChecked && !endRaw) {
+        endSec = null;
+      }
+
+      if (editingMarkerId) {
+        const existing = song.markers.find(m => m.id === editingMarkerId);
+        if (existing) {
+          existing.name = name;
+          existing.start = startSec;
+          existing.end = endSec;
+          existing.loop = loopChecked;
+        }
+      } else {
+        const newM = {
+          id: 'm_' + Date.now(),
+          name,
+          start: startSec,
+          end: endSec,
+          loop: loopChecked,
+          caption: `[${name}]`
+        };
+        song.markers.push(newM);
+        if (loopChecked && endSec) {
+          activeLoopMarkerId = newM.id;
+          showLoopToast(newM);
+        }
+      }
+
+      saveStateToStorage();
+      closeMarkerModal();
+      renderMarkersList();
+      renderTimelineTicks();
+      updateTimelineUI();
+    }
+
+    function deleteMarker(markerId) {
+      const song = getCurrentSong();
+      song.markers = song.markers.filter(m => m.id !== markerId);
+      if (activeLoopMarkerId === markerId) {
+        clearActiveLoop();
+      }
+      saveStateToStorage();
+      renderMarkersList();
+      renderTimelineTicks();
+      updateTimelineUI();
+    }
+
+    /********************************************************************
+     * 13. LIBRARY, SOURCE, SONG METADATA & NOTES MODALS
+     ********************************************************************/
+    function openLibraryModal() {
+      const list = document.getElementById('librarySongsList');
+      list.innerHTML = songs.map((s, idx) => {
+        const isCurrent = idx === currentSongIndex;
+        return `
+          <div
+            onclick="selectSongByIndex(${idx}); closeLibraryModal();"
+            class="p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition hover:opacity-90"
+            style="background-color: ${isCurrent ? 'var(--accent-soft)' : 'var(--app-surface)'}; border-color: ${isCurrent ? 'var(--accent)' : 'var(--app-border)'};"
+          >
+            <div class="min-w-0">
+              <div class="text-sm font-bold truncate">${escapeHtml(s.title)}</div>
+              <div class="text-xs opacity-70">${escapeHtml(s.key)} • ${s.bpm} BPM • ${s.markers.length} markers</div>
+            </div>
+            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold" style="background-color: var(--accent); color: #fff;">
+              ${isCurrent ? 'Active' : 'Load'}
+            </span>
+          </div>
+        `;
+      }).join('');
+      document.getElementById('libraryModal').classList.remove('hidden');
+    }
+
+    function closeLibraryModal() {
+      document.getElementById('libraryModal').classList.add('hidden');
+    }
+
+    function openSourceModal() {
+      document.getElementById('sourceModal').classList.remove('hidden');
+    }
+
+    function closeSourceModal() {
+      document.getElementById('sourceModal').classList.add('hidden');
+    }
+
+    function openSongMetaModal() {
+      const song = getCurrentSong();
+      document.getElementById('editSongTitle').value = song.title;
+      document.getElementById('editSongKey').value = song.key;
+      document.getElementById('editSongBpm').value = song.bpm;
+      document.getElementById('songMetaModal').classList.remove('hidden');
+    }
+
+    function closeSongMetaModal() {
+      document.getElementById('songMetaModal').classList.add('hidden');
+    }
+
+    function handleTapTempo() {
+      const now = performance.now();
+      tapTimes.push(now);
+      if (tapTimes.length > 5) tapTimes.shift();
+      if (tapTimes.length >= 2) {
+        let totalIntervals = 0;
+        for (let i = 1; i < tapTimes.length; i++) {
+          totalIntervals += tapTimes[i] - tapTimes[i - 1];
+        }
+        const avgMs = totalIntervals / (tapTimes.length - 1);
+        const bpm = Math.min(240, Math.max(45, Math.round(60000 / avgMs)));
+        document.getElementById('editSongBpm').value = bpm;
+      }
+    }
+
+    function saveSongMetadata() {
+      const song = getCurrentSong();
+      song.title = document.getElementById('editSongTitle').value.trim() || song.title;
+      song.key = document.getElementById('editSongKey').value.trim() || song.key;
+      song.bpm = parseInt(document.getElementById('editSongBpm').value, 10) || song.bpm;
+      saveStateToStorage();
+      renderSongHeader();
+      closeSongMetaModal();
+    }
+
+    function openNotesModal() {
+      const song = getCurrentSong();
+      document.getElementById('songNotesTextarea').value = song.notes || '';
+      document.getElementById('notesModal').classList.remove('hidden');
+    }
+
+    function closeNotesModal() {
+      document.getElementById('notesModal').classList.add('hidden');
+    }
+
+    function saveSongNotes() {
+      getCurrentSong().notes = document.getElementById('songNotesTextarea').value;
+      saveStateToStorage();
+      closeNotesModal();
+    }
+
+    function toggleWideMode() {
+      const shell = document.getElementById('appShell');
+      shell.classList.toggle('sm:max-w-[430px]');
+      shell.classList.toggle('sm:max-w-[780px]');
+    }
+
+    function openGoLiveModal() {
+      document.getElementById('goLiveModal').classList.remove('hidden');
+    }
+
+    function closeGoLiveModal() {
+      document.getElementById('goLiveModal').classList.add('hidden');
+    }
+
+    function downloadStandaloneApp() {
+      const htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'index.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function copyShareableSongJson() {
+      const dataStr = JSON.stringify(getCurrentSong(), null, 2);
+      const tempInput = document.createElement('textarea');
+      tempInput.value = dataStr;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+
+      const btn = document.getElementById('copyJsonBtn');
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = '<i class="ph-bold ph-check text-emerald-500"></i><span>Copied to Clipboard!</span>';
+      setTimeout(() => {
+        btn.innerHTML = originalHtml;
+      }, 2000);
+    }
+
+    /********************************************************************
+     * 14. UTILITY HELPERS & KEYBOARD SHORTCUTS
+     ********************************************************************/
+    function formatTime(seconds) {
+      if (!isFinite(seconds) || seconds < 0) seconds = 0;
+      const totalSec = Math.floor(seconds);
+      const mins = Math.floor(totalSec / 60);
+      const secs = totalSec % 60;
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    function parseTimeInput(str) {
+      if (!str) return null;
+      const cleaned = str.trim();
+      if (/^\d+$/.test(cleaned)) return parseInt(cleaned, 10);
+      const parts = cleaned.split(':');
+      if (parts.length === 2) {
+        const m = parseInt(parts[0], 10) || 0;
+        const s = parseInt(parts[1], 10) || 0;
+        return m * 60 + s;
+      }
+      return null;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Keyboard Shortcuts (Space = Play/Pause, Left/Right = Seek 5s, M = Quick Drop Marker, L = Toggle Loop)
+    window.addEventListener('keydown', (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        seekRelative(-5);
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        seekRelative(5);
+      } else if (e.key === 'l' || e.key === 'L') {
+        toggleLoopCurrentSection();
+      } else if (e.key === 'm' || e.key === 'M') {
+        quickDropMarker();
+      }
+    });
+
+    // Boot Application on Window Load
+    window.onload = function () {
+      loadStateFromStorage();
+      selectSongByIndex(0);
+      requestAnimationFrame(mainAnimationLoop);
+    };
+  </script>
+</body>
+</html>
